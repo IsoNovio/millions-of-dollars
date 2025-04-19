@@ -18,8 +18,21 @@ const options = [
 let activeView = "submissions"; // 'submissions', 'random', 'all'
 let selectedOptions = [];
 
+// Modal states
+let showAdminModal = false;
+let showClearModal = false;
+let adminPassword = "";
+let clearPassword = "";
+let passwordError = "";
+
 // Function to shuffle and select random submissions
 function selectRandomSubmissions() {
+	if (data.submissions.length <= 1) {
+		selectedOptions = [];
+		activeView = "random";
+		return;
+	}
+
 	// Create a copy of submissions to shuffle
 	const submissionsCopy = [...data.submissions];
 
@@ -32,8 +45,9 @@ function selectRandomSubmissions() {
 		];
 	}
 
-	// Take up to 5 submissions
-	const selectedSubmissions = submissionsCopy.slice(0, 5);
+	// Take N-1 submissions where N is the total number of submissions
+	const numToSelect = Math.max(0, data.submissions.length - 1);
+	const selectedSubmissions = submissionsCopy.slice(0, numToSelect);
 
 	// Extract only the options
 	selectedOptions = selectedSubmissions.map((sub) => sub.option);
@@ -42,15 +56,40 @@ function selectRandomSubmissions() {
 	activeView = "random";
 }
 
-// Show all submissions with details
-function showAllSubmissions() {
+// Show all submissions with details (after password verification)
+function promptAdminPassword() {
+	showAdminModal = true;
+	adminPassword = "";
+	passwordError = "";
+}
+
+// Prompt for clear password
+function promptClearPassword() {
+	showClearModal = true;
+	clearPassword = "";
+	passwordError = "";
+}
+
+// Handle admin password form submission result
+$: if (form?.action === "viewAll" && form?.success) {
+	showAdminModal = false;
 	activeView = "all";
+} else if (form?.action === "cleared" && form?.success) {
+	showClearModal = false;
+	activeView = "submissions";
 }
 
 // Reset to basic submissions view
 function showBasicSubmissions() {
 	activeView = "submissions";
 	selectedOptions = [];
+}
+
+// Close modals
+function closeModals() {
+	showAdminModal = false;
+	showClearModal = false;
+	passwordError = "";
 }
 </script>
 
@@ -84,8 +123,8 @@ function showBasicSubmissions() {
       <button type="submit" class="btn submit-btn">Submit</button>
     </form>
 
-    {#if form?.message}
-      <div class="message {form.success ? 'success' : 'error'}">
+    {#if form?.message && !form?.action}
+      <div class="message {form?.success ? 'success' : 'error'}">
         {form.message}
       </div>
     {/if}
@@ -114,7 +153,7 @@ function showBasicSubmissions() {
               {selectedOptions.join(', ')} {selectedOptions.length === 1 ? 'is' : 'are'} selected
             </p>
           {:else}
-            <p>No options to select from.</p>
+            <p>No options to select from or not enough submissions.</p>
           {/if}
         </div>
 
@@ -151,23 +190,99 @@ function showBasicSubmissions() {
 
         {#if activeView === 'submissions'}
           <button class="btn select-btn" on:click={selectRandomSubmissions}>
-            Select 5 Random Submissions
+            Select {Math.max(0, data.submissions.length - 1)} Random Submissions
           </button>
 
-          <button class="btn all-btn" on:click={showAllSubmissions}>
+          <button class="btn all-btn" on:click={promptAdminPassword}>
             Show All Selections
           </button>
-        {/if}
 
-        <form method="POST" action="?/clear" use:enhance>
-          <button type="submit" class="btn clear-btn">Clear All Submissions</button>
-        </form>
+          <button class="btn clear-btn" on:click={promptClearPassword}>
+            Clear All Submissions
+          </button>
+        {/if}
       </div>
 
     {:else}
       <p>No submissions yet.</p>
     {/if}
   </section>
+
+  <!-- Admin Password Modal -->
+  {#if showAdminModal}
+    <div class="modal-overlay">
+      <div class="modal">
+        <h3>Admin Access Required</h3>
+        <p>Please enter the admin password to view all submissions:</p>
+
+        <form method="POST" action="?/verifyAdminPassword" use:enhance>
+          <div class="form-group">
+            <input
+              type="password"
+              id="adminPassword"
+              name="adminPassword"
+              bind:value={adminPassword}
+              required
+              autofocus
+            >
+          </div>
+
+          {#if form?.message && !form?.success && form?.action !== 'cleared'}
+            <div class="message error">
+              {form.message}
+            </div>
+          {/if}
+
+          <div class="modal-actions">
+            <button type="button" class="btn cancel-btn" on:click={closeModals}>
+              Cancel
+            </button>
+            <button type="submit" class="btn confirm-btn">
+              Confirm
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Clear Password Modal -->
+  {#if showClearModal}
+    <div class="modal-overlay">
+      <div class="modal">
+        <h3>Confirm Clear All</h3>
+        <p>Please enter the clear password to remove all submissions:</p>
+
+        <form method="POST" action="?/verifyClearPassword" use:enhance>
+          <div class="form-group">
+            <input
+              type="password"
+              id="clearPassword"
+              name="clearPassword"
+              bind:value={clearPassword}
+              required
+              autofocus
+            >
+          </div>
+
+          {#if form?.message && !form?.success && form?.action !== 'viewAll'}
+            <div class="message error">
+              {form.message}
+            </div>
+          {/if}
+
+          <div class="modal-actions">
+            <button type="button" class="btn cancel-btn" on:click={closeModals}>
+              Cancel
+            </button>
+            <button type="submit" class="btn confirm-btn">
+              Confirm
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  {/if}
 </main>
 
 <style>
@@ -239,6 +354,16 @@ function showBasicSubmissions() {
 
   .clear-btn {
     background-color: #f44336;
+    color: white;
+  }
+
+  .cancel-btn {
+    background-color: #9E9E9E;
+    color: white;
+  }
+
+  .confirm-btn {
+    background-color: #FF9800;
     color: white;
   }
 
@@ -317,5 +442,39 @@ function showBasicSubmissions() {
 
   table tr:hover {
     background-color: #f9f9f9;
+  }
+
+  /* Modal styles */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+
+  .modal {
+    background-color: white;
+    padding: 20px;
+    border-radius: 5px;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .modal h3 {
+    margin-top: 0;
+    color: #333;
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 20px;
   }
 </style>

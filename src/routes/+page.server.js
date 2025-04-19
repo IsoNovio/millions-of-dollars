@@ -1,8 +1,10 @@
 // In-memory storage for submissions
 let submissions = [];
 
-// Password for authentication (in a real app, use proper auth)
-const CORRECT_PASSWORD = "hydgg";
+// Passwords for different actions
+const SUBMIT_PASSWORD = "hydgg";
+const ADMIN_PASSWORD = "gezondheid"; // For viewing all submissions
+const CLEAR_PASSWORD = "gezondheid"; // For clearing submissions
 
 export const actions = {
 	// Handle form submission
@@ -21,7 +23,7 @@ export const actions = {
 		}
 
 		// Check password
-		if (password !== CORRECT_PASSWORD) {
+		if (password !== SUBMIT_PASSWORD) {
 			return {
 				success: false,
 				message: "Incorrect password",
@@ -42,14 +44,44 @@ export const actions = {
 		};
 	},
 
-	// Clear all submissions
-	clear: async () => {
-		submissions = [];
-		return {
-			success: true,
-			message: "All submissions cleared",
-			submissions,
-		};
+	// Verify admin password for viewing all submissions
+	verifyAdminPassword: async ({ request }) => {
+		const formData = await request.formData();
+		const password = formData.get("adminPassword");
+
+		if (password === ADMIN_PASSWORD) {
+			return {
+				success: true,
+				action: "viewAll",
+				submissions,
+			};
+		} else {
+			return {
+				success: false,
+				message: "Incorrect admin password",
+			};
+		}
+	},
+
+	// Verify clear password and clear submissions
+	verifyClearPassword: async ({ request }) => {
+		const formData = await request.formData();
+		const password = formData.get("clearPassword");
+
+		if (password === CLEAR_PASSWORD) {
+			submissions = [];
+			return {
+				success: true,
+				action: "cleared",
+				message: "All submissions cleared",
+				submissions: [],
+			};
+		} else {
+			return {
+				success: false,
+				message: "Incorrect clear password",
+			};
+		}
 	},
 };
 
